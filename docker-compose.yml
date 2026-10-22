@@ -1,0 +1,46 @@
+# Telco Churn Analytics & Data Warehouse
+# Owners & Developers: MuhammaD_Wallah and the GROUP
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: telco_churn_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "${HOST_DB_PORT:-5433}:5432"
+    volumes:
+      - telco_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: telco_churn_app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8501:8501"
+    environment:
+      PGHOST: db
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      DASHBOARD_DB_HOST: db
+      DASHBOARD_DB_PORT: "5432"
+      DASHBOARD_DB_NAME: telco_churn_dw
+      DASHBOARD_DB_USER: churn_dashboard
+      DASHBOARD_DB_PASSWORD: churn_dashboard_pass
+      ADMIN_PASSWORD: "Password123!"
+      ANALYST_PASSWORD: "Password123!"
+
+volumes:
+  telco_pgdata:

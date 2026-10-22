@@ -35,9 +35,23 @@ An end-to-end Enterprise Data Warehouse, Machine Learning Data Mining pipeline, 
    - Streamlit application with role-based access control (`admin`, `analyst`).
    - Interactive OLAP slicing & dicing, tenure drill-downs, revenue risk analysis, and real-time decision threshold simulation.
 
+## 🐳 Running with Docker (Recommended)
+
+Run the entire system (PostgreSQL Data Warehouse + Automated ML Pipeline + Streamlit Dashboard) with a single command:
+
+```bash
+docker compose up --build
+```
+
+- **Dashboard**: Opens at [http://localhost:8501](http://localhost:8501)
+- **Sign in**: 
+  - Admin: `admin` / `Password123!`
+  - Analyst: `analyst` / `Password123!`
+- **Database**: PostgreSQL 16 runs containerized and is accessible on port `5433` (or internally via Docker network).
+
 ---
 
-## 🚀 Quick Start
+## 💻 Local Setup (Without Docker)
 
 ### 1. Requirements
 - Python 3.10+
