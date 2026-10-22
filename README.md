@@ -1,7 +1,9 @@
 # Telco Churn Analytics & Data Warehouse
 
 [![Build, Test & Deploy Model](https://github.com/MuhamadWallah/telco-churn-analytics/actions/workflows/deploy.yml/badge.svg)](https://github.com/MuhamadWallah/telco-churn-analytics/actions/workflows/deploy.yml)
+[![GitHub Pages](https://img.shields.io/badge/Live_Showcase-GitHub_Pages-blue?logo=github&style=flat-square)](https://muhamadwallah.github.io/telco-churn-analytics/)
 
+> 🌐 **Live Web Application & Model Predictor**: [https://muhamadwallah.github.io/telco-churn-analytics/](https://muhamadwallah.github.io/telco-churn-analytics/)  
 > **Owners & Developers:** MuhammaD_Wallah and the GROUP are the owners and Developers of this model.
 
 An end-to-end Enterprise Data Warehouse, Machine Learning Data Mining pipeline, and Interactive Analytics Dashboard for customer churn prediction in the telecommunications sector.

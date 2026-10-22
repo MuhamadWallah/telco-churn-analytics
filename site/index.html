@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Telco Churn Analytics | Enterprise Data Warehouse & ML Model</title>
+  <meta name="description" content="Customer Churn Prediction and Data Warehouse built on PostgreSQL star schema, supervised machine learning (Scikit-Learn), and interactive analytics dashboard. Developed by MuhammaD_Wallah and the GROUP.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar">
+    <a href="#" class="nav-brand">
+      <div class="brand-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-title">Telco Churn Analytics</div>
+        <span class="brand-sub">Enterprise DW & ML Platform</span>
+      </div>
+    </a>
+
+    <ul class="nav-links">
+      <li><a href="#overview" class="nav-link">Overview</a></li>
+      <li><a href="#simulator" class="nav-link">Risk Predictor</a></li>
+      <li><a href="#models" class="nav-link">Model Performance</a></li>
+      <li><a href="#threshold" class="nav-link">Decision Simulator</a></li>
+      <li><a href="#importance" class="nav-link">Feature Ranking</a></li>
+      <li><a href="#architecture" class="nav-link">Star Schema</a></li>
+      <li><a href="#gallery" class="nav-link">Dashboard Gallery</a></li>
+    </ul>
+
+    <div class="nav-cta">
+      <a href="https://github.com/MuhamadWallah/telco-churn-analytics" target="_blank" class="btn btn-outline">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path>
+        </svg>
+        GitHub Repository
+      </a>
+      <a href="#simulator" class="btn btn-primary">Try Predictor</a>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <header class="hero" id="overview">
+    <div class="badge-owner">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
+      </svg>
+      MuhammaD_Wallah and the GROUP are the owners and Developers of this model
+    </div>
+
+    <h1 class="hero-title">Predicting Customer Churn with <span class="gradient-text">Precision & Scale</span></h1>
+    <p class="hero-subtitle">
+      An end-to-end Enterprise Data Warehouse with a PostgreSQL star schema, 4 supervised machine learning models, and real-time interactive decision support.
+    </p>
+
+    <div class="hero-actions">
+      <a href="#simulator" class="btn btn-primary">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+        Live Churn Risk Calculator
+      </a>
+      <a href="#architecture" class="btn btn-outline">Explore Data Warehouse</a>
+    </div>
+
+    <!-- KPI Grid -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Total Customers</div>
+        <div class="kpi-value">7,043</div>
+        <div class="kpi-sub">Cleaned & Modeled in Star Schema</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Churn Rate</div>
+        <div class="kpi-value">26.54%</div>
+        <div class="kpi-sub">1,869 Churned Customers</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Monthly Lost Revenue</div>
+        <div class="kpi-value">$139,131</div>
+        <div class="kpi-sub">30.5% of Total Monthly Inflow</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Top Model ROC-AUC</div>
+        <div class="kpi-value">0.847</div>
+        <div class="kpi-sub">Gradient Boosting (5-Fold CV)</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Live Risk Predictor Section -->
+  <section class="section" id="simulator">
+    <div class="section-header">
+      <div class="section-tag">Interactive Simulation</div>
+      <h2 class="section-title">Real-Time Churn Risk Predictor</h2>
+      <p class="section-desc">Test real customer profiles in real-time. The scoring engine evaluates contract, tenure, add-ons, and charges to calculate instant churn probabilities.</p>
+    </div>
+
+    <div class="glass-panel simulator-layout">
+      <!-- Form Controls -->
+      <div class="simulator-controls">
+        <div class="form-group">
+          <label class="form-label" for="input-tenure">
+            <span>Customer Tenure</span>
+            <span class="form-val-badge" id="val-tenure">12 mo</span>
+          </label>
+          <input type="range" id="input-tenure" min="0" max="72" value="12" step="1">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div class="form-group">
+            <label class="form-label" for="input-contract">Contract Commitment</label>
+            <select id="input-contract" class="form-control">
+              <option value="Month-to-month" selected>Month-to-month</option>
+              <option value="One year">One year</option>
+              <option value="Two year">Two year</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="input-internet">Internet Service Type</label>
+            <select id="input-internet" class="form-control">
+              <option value="Fiber optic" selected>Fiber optic</option>
+              <option value="DSL">DSL</option>
+              <option value="No">No Internet</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="input-charges">
+            <span>Monthly Charges ($)</span>
+            <span class="form-val-badge" id="val-charges">$75.00</span>
+          </label>
+          <input type="range" id="input-charges" min="18" max="118" value="75" step="1">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div class="form-group">
+            <label class="form-label" for="input-security">Online Security</label>
+            <select id="input-security" class="form-control">
+              <option value="No" selected>No</option>
+              <option value="Yes">Yes (Protected)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="input-support">Tech Support Add-on</label>
+            <select id="input-support" class="form-control">
+              <option value="No" selected>No</option>
+              <option value="Yes">Yes</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="input-payment">Billing / Payment Method</label>
+          <select id="input-payment" class="form-control">
+            <option value="Electronic check" selected>Electronic check (Highest Churn)</option>
+            <option value="Credit card (automatic)">Credit card (automatic)</option>
+            <option value="Bank transfer (automatic)">Bank transfer (automatic)</option>
+            <option value="Mailed check">Mailed check</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Real-Time Result Score Card -->
+      <div class="score-card">
+        <div class="score-circle" id="score-circle" style="--score-pct: 72;">
+          <div class="score-circle-inner">
+            <div class="score-number" id="score-number">72%</div>
+            <div class="score-pct-label">Churn Hazard</div>
+          </div>
+        </div>
+
+        <div class="risk-badge high" id="risk-badge">High Risk of Churn</div>
+
+        <div class="recommendation-box" id="rec-text">
+          ⚠️ <strong>High churn hazard:</strong> Customer is on a vulnerable contract/service structure. Recommended action: Proactively offer a <strong>1-year commitment discount</strong> bundled with complimentary <strong>Tech Support & Online Security</strong>.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Model Comparison Section -->
+  <section class="section" id="models">
+    <div class="section-header">
+      <div class="section-tag">Machine Learning Evaluation</div>
+      <h2 class="section-title">4 Supervised Classification Models</h2>
+      <p class="section-desc">Leakage-safe preprocessing pipeline with 80/20 train/test split (5,634 train / 1,409 test) and 5-fold Stratified Cross-Validation on the PostgreSQL warehouse.</p>
+    </div>
+
+    <div class="glass-panel">
+      <div class="data-table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Model Algorithm</th>
+              <th>Accuracy</th>
+              <th>Precision</th>
+              <th>Recall</th>
+              <th>F1-Score</th>
+              <th>Test ROC-AUC</th>
+              <th>5-Fold CV Mean</th>
+              <th>Primary Strength</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Gradient Boosting</strong></td>
+              <td><span class="metric-pill">80.48%</span></td>
+              <td><span class="metric-pill top">67.01%</span></td>
+              <td><span class="metric-pill">52.14%</span></td>
+              <td><span class="metric-pill">0.586</span></td>
+              <td><span class="metric-pill top">0.845</span></td>
+              <td><span class="metric-pill top">0.847 ± 0.011</span></td>
+              <td>Highest precision & top discrimination</td>
+            </tr>
+            <tr>
+              <td><strong>Random Forest</strong> (Balanced)</td>
+              <td><span class="metric-pill">75.59%</span></td>
+              <td><span class="metric-pill">52.74%</span></td>
+              <td><span class="metric-pill top">77.27%</span></td>
+              <td><span class="metric-pill top">0.627</span></td>
+              <td><span class="metric-pill">0.843</span></td>
+              <td><span class="metric-pill">0.846 ± 0.012</span></td>
+              <td>Catches 77% of churners (high recall)</td>
+            </tr>
+            <tr>
+              <td><strong>Logistic Regression</strong></td>
+              <td><span class="metric-pill top">80.55%</span></td>
+              <td><span class="metric-pill">65.72%</span></td>
+              <td><span class="metric-pill">55.88%</span></td>
+              <td><span class="metric-pill">0.604</span></td>
+              <td><span class="metric-pill">0.842</span></td>
+              <td><span class="metric-pill">0.845 ± 0.013</span></td>
+              <td>Interpretable coefficients & fast inference</td>
+            </tr>
+            <tr>
+              <td><strong>Decision Tree</strong></td>
+              <td><span class="metric-pill">79.84%</span></td>
+              <td><span class="metric-pill">63.47%</span></td>
+              <td><span class="metric-pill">56.68%</span></td>
+              <td><span class="metric-pill">0.599</span></td>
+              <td><span class="metric-pill">0.828</span></td>
+              <td><span class="metric-pill">0.831 ± 0.008</span></td>
+              <td>Direct rule-based segmentation</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-top: 1.5rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+        <div style="background: rgba(15,23,42,0.6); padding: 1rem; border-radius: 10px; border: 1px solid var(--border-subtle); font-size: 0.85rem; color: var(--text-secondary);">
+          <strong style="color: var(--accent-cyan);">Recall Focus (Random Forest):</strong> Best when missing a churner has severe business costs (e.g. enterprise accounts). Catches 289 out of 374 churners in the test holdout.
+        </div>
+        <div style="background: rgba(15,23,42,0.6); padding: 1rem; border-radius: 10px; border: 1px solid var(--border-subtle); font-size: 0.85rem; color: var(--text-secondary);">
+          <strong style="color: var(--accent-purple);">Precision Focus (Gradient Boosting):</strong> Best when retention offers/discounts are costly. Achieves 67.0% precision with minimum false alarms.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Decision Threshold & Cost Simulator -->
+  <section class="section" id="threshold">
+    <div class="section-header">
+      <div class="section-tag">Business Financial Simulation</div>
+      <h2 class="section-title">Decision Threshold & Cost Trade-Offs</h2>
+      <p class="section-desc">Default models predict churn at probability ≥ 0.50. Adjust the decision threshold and dollar error costs to find the financial optimum for your retention campaign.</p>
+    </div>
+
+    <div class="glass-panel simulator-layout">
+      <div>
+        <div class="form-group">
+          <label class="form-label" for="sim-threshold">
+            <span>Decision Threshold (Probability Cutoff)</span>
+            <span class="form-val-badge" id="sim-thr-val">0.50</span>
+          </label>
+          <input type="range" id="sim-threshold" min="0.10" max="0.80" value="0.50" step="0.05">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div class="form-group">
+            <label class="form-label" for="sim-cost-fn">Cost of a Missed Churner (FN)</label>
+            <input type="number" id="sim-cost-fn" class="form-control" value="500" min="0" step="50">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="sim-cost-fp">Cost of a Wasted Offer (FP)</label>
+            <input type="number" id="sim-cost-fp" class="form-control" value="50" min="0" step="10">
+          </div>
+        </div>
+
+        <div style="margin-top: 1.5rem; background: rgba(15,23,42,0.7); padding: 1.25rem; border-radius: 12px; border: 1px solid var(--border-subtle);">
+          <div style="font-size: 0.85rem; font-weight: 700; color: #cbd5e1; margin-bottom: 0.75rem;">Simulated Test Set Confusion Matrix (1,409 Customers)</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; text-align: center;">
+            <div style="background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.25); padding: 0.75rem; border-radius: 8px;">
+              <div style="font-size: 0.75rem; color: #a7f3d0;">True Positives (Saved)</div>
+              <div style="font-size: 1.4rem; font-weight: 800; color: #34d399;" id="sim-tp">195</div>
+            </div>
+            <div style="background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.25); padding: 0.75rem; border-radius: 8px;">
+              <div style="font-size: 0.75rem; color: #fde68a;">False Positives (Wasted)</div>
+              <div style="font-size: 1.4rem; font-weight: 800; color: #fbbf24;" id="sim-fp">96</div>
+            </div>
+            <div style="background: rgba(244,63,94,0.1); border: 1px solid rgba(244,63,94,0.25); padding: 0.75rem; border-radius: 8px;">
+              <div style="font-size: 0.75rem; color: #fda4af;">False Negatives (Lost)</div>
+              <div style="font-size: 1.4rem; font-weight: 800; color: #f43f5e;" id="sim-fn">179</div>
+            </div>
+            <div style="background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.25); padding: 0.75rem; border-radius: 8px;">
+              <div style="font-size: 0.75rem; color: #bae6fd;">True Negatives (Correct)</div>
+              <div style="font-size: 1.4rem; font-weight: 800; color: #38bdf8;" id="sim-tn">939</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="score-card" style="text-align: left; padding: 2rem;">
+        <div style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 0.25rem;">Total Business Cost</div>
+        <div style="font-size: 2.5rem; font-weight: 800; color: var(--accent-rose); margin-bottom: 1.5rem;" id="sim-total-cost">$94,300</div>
+
+        <div style="display: flex; flex-direction: column; gap: 0.75rem; font-size: 0.9rem;">
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.5rem;">
+            <span style="color: var(--text-secondary);">Recall (Detection Rate):</span>
+            <span style="font-weight: 700; color: var(--accent-cyan);" id="sim-recall">52.1%</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.5rem;">
+            <span style="color: var(--text-secondary);">Precision (Offer Accuracy):</span>
+            <span style="font-weight: 700; color: var(--accent-indigo);" id="sim-precision">67.0%</span>
+          </div>
+          <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.5rem;">
+            💡 <em>Lowering the threshold to 0.35 increases retention catch rate, reducing total churn expense when lost customers are valuable.</em>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Feature Importance Ranking -->
+  <section class="section" id="importance">
+    <div class="section-header">
+      <div class="section-tag">Key Drivers</div>
+      <h2 class="section-title">Permutation Feature Importance</h2>
+      <p class="section-desc">Identifies features with the highest impact on model ROC-AUC on holdout test data. Shows where customer churn is concentrated.</p>
+    </div>
+
+    <div class="glass-panel" style="max-width: 900px; margin: 0 auto;">
+      <div class="importance-list">
+        <div class="importance-item">
+          <div style="font-weight: 600; font-size: 0.85rem;">1. Contract (Type)</div>
+          <div class="bar-track"><div class="bar-fill" style="width: 100%;"></div></div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; text-align: right;">+0.0639</div>
+        </div>
+        <div class="importance-item">
+          <div style="font-weight: 600; font-size: 0.85rem;">2. Tenure Months</div>
+          <div class="bar-track"><div class="bar-fill" style="width: 40%;"></div></div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; text-align: right;">+0.0251</div>
+        </div>
+        <div class="importance-item">
+          <div style="font-weight: 600; font-size: 0.85rem;">3. Internet Service</div>
+          <div class="bar-track"><div class="bar-fill" style="width: 31%;"></div></div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; text-align: right;">+0.0194</div>
+        </div>
+        <div class="importance-item">
+          <div style="font-weight: 600; font-size: 0.85rem;">4. Total Charges</div>
+          <div class="bar-track"><div class="bar-fill" style="width: 20%;"></div></div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; text-align: right;">+0.0125</div>
+        </div>
+        <div class="importance-item">
+          <div style="font-weight: 600; font-size: 0.85rem;">5. Online Security</div>
+          <div class="bar-track"><div class="bar-fill" style="width: 11%;"></div></div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; text-align: right;">+0.0067</div>
+        </div>
+        <div class="importance-item">
+          <div style="font-weight: 600; font-size: 0.85rem;">6. Tech Support</div>
+          <div class="bar-track"><div class="bar-fill" style="width: 8%;"></div></div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; text-align: right;">+0.0051</div>
+        </div>
+        <div class="importance-item">
+          <div style="font-weight: 600; font-size: 0.85rem;">7. Payment Method</div>
+          <div class="bar-track"><div class="bar-fill" style="width: 4%;"></div></div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; text-align: right;">+0.0022</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Architecture Star Schema Section -->
+  <section class="section" id="architecture">
+    <div class="section-header">
+      <div class="section-tag">Enterprise Data Warehouse</div>
+      <h2 class="section-title">PostgreSQL Star Schema Architecture</h2>
+      <p class="section-desc">Organized into 3 clean analytical tiers: Staging (Layer 1) -> Dimensional Warehouse (Layer 2) -> OLAP Reporting & Mining (Layer 3).</p>
+    </div>
+
+    <div class="schema-grid">
+      <div class="schema-card">
+        <div class="schema-title">
+          <span>fact_customer_churn</span>
+          <span style="font-size: 0.75rem; color: var(--accent-rose);">FACT</span>
+        </div>
+        <ul class="schema-cols">
+          <li><span class="schema-key">customer_key [FK]</span> <span>int</span></li>
+          <li><span class="schema-key">contract_key [FK]</span> <span>int</span></li>
+          <li><span class="schema-key">service_key [FK]</span> <span>int</span></li>
+          <li><span class="schema-key">payment_key [FK]</span> <span>int</span></li>
+          <li><span class="schema-key">tenure_key [FK]</span> <span>int</span></li>
+          <li><span class="schema-key">churn_key [FK]</span> <span>int</span></li>
+          <li><span>monthly_charges</span> <span>numeric</span></li>
+          <li><span>total_charges</span> <span>numeric</span></li>
+        </ul>
+      </div>
+
+      <div class="schema-card">
+        <div class="schema-title">
+          <span>dim_customer</span>
+          <span style="font-size: 0.75rem; color: var(--accent-cyan);">DIM</span>
+        </div>
+        <ul class="schema-cols">
+          <li><span class="schema-key">customer_key [PK]</span> <span>int</span></li>
+          <li><span>customer_id</span> <span>text</span></li>
+          <li><span>gender</span> <span>text</span></li>
+          <li><span>senior_citizen</span> <span>bool</span></li>
+          <li><span>partner</span> <span>bool</span></li>
+          <li><span>dependents</span> <span>bool</span></li>
+        </ul>
+      </div>
+
+      <div class="schema-card">
+        <div class="schema-title">
+          <span>dim_contract</span>
+          <span style="font-size: 0.75rem; color: var(--accent-cyan);">DIM</span>
+        </div>
+        <ul class="schema-cols">
+          <li><span class="schema-key">contract_key [PK]</span> <span>int</span></li>
+          <li><span>contract_type</span> <span>text</span></li>
+          <li><span>paperless_billing</span> <span>bool</span></li>
+        </ul>
+      </div>
+
+      <div class="schema-card">
+        <div class="schema-title">
+          <span>dim_service</span>
+          <span style="font-size: 0.75rem; color: var(--accent-cyan);">DIM</span>
+        </div>
+        <ul class="schema-cols">
+          <li><span class="schema-key">service_key [PK]</span> <span>int</span></li>
+          <li><span>internet_service</span> <span>text</span></li>
+          <li><span>online_security</span> <span>text</span></li>
+          <li><span>tech_support</span> <span>text</span></li>
+          <li><span>online_backup</span> <span>text</span></li>
+          <li><span>streaming_tv</span> <span>text</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Dashboard Gallery Lightbox -->
+  <section class="section" id="gallery">
+    <div class="section-header">
+      <div class="section-tag">Interactive Views</div>
+      <h2 class="section-title">Streamlit Analytics Dashboard</h2>
+      <p class="section-desc">Click any view to inspect screenshots of the live interactive dashboards, OLAP explorers, and admin panels.</p>
+    </div>
+
+    <div class="gallery-grid">
+      <div class="gallery-card" data-src="screenshots/02_overview.png">
+        <img src="screenshots/02_overview.png" alt="Executive Overview" class="gallery-img">
+        <div class="gallery-body">
+          <div class="gallery-title">Executive Churn Overview</div>
+          <div class="gallery-sub">KPI summary cards, rate trends, and monthly lost revenue</div>
+        </div>
+      </div>
+
+      <div class="gallery-card" data-src="screenshots/03_explorer.png">
+        <img src="screenshots/03_explorer.png" alt="Slice & Dice Explorer" class="gallery-img">
+        <div class="gallery-body">
+          <div class="gallery-title">Slice & Dice Explorer</div>
+          <div class="gallery-sub">OLAP multi-dimensional cube breakdown</div>
+        </div>
+      </div>
+
+      <div class="gallery-card" data-src="screenshots/05_risk.png">
+        <img src="screenshots/05_risk.png" alt="Revenue at Risk" class="gallery-img">
+        <div class="gallery-body">
+          <div class="gallery-title">Revenue at Risk</div>
+          <div class="gallery-sub">Pareto concentration of financial churn loss</div>
+        </div>
+      </div>
+
+      <div class="gallery-card" data-src="screenshots/07_models.png">
+        <img src="screenshots/07_models.png" alt="Model Comparison" class="gallery-img">
+        <div class="gallery-body">
+          <div class="gallery-title">Model Comparison Matrix</div>
+          <div class="gallery-sub">Evaluating accuracy, precision, recall, and ROC-AUC</div>
+        </div>
+      </div>
+
+      <div class="gallery-card" data-src="screenshots/08_roc.png">
+        <img src="screenshots/08_roc.png" alt="ROC & Threshold Tuning" class="gallery-img">
+        <div class="gallery-body">
+          <div class="gallery-title">ROC Curves & Threshold Slider</div>
+          <div class="gallery-sub">Decision threshold tuning and confusion matrix</div>
+        </div>
+      </div>
+
+      <div class="gallery-card" data-src="screenshots/10_atrisk.png">
+        <img src="screenshots/10_atrisk.png" alt="At-risk Customers" class="gallery-img">
+        <div class="gallery-body">
+          <div class="gallery-title">Scored At-Risk Customer Lists</div>
+          <div class="gallery-sub">Actionable customer targeting with risk probability scores</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Modal Lightbox -->
+  <div class="modal-overlay" id="image-modal">
+    <div class="modal-content">
+      <button class="modal-close" id="modal-close">&times;</button>
+      <img src="" alt="Dashboard Preview" class="modal-img" id="modal-img">
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-brand">Telco Churn Analytics</div>
+      <div class="footer-credits">
+        <strong>Owners & Developers:</strong> MuhammaD_Wallah and the GROUP are the owners and Developers of this model.
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/MuhamadWallah/telco-churn-analytics" target="_blank" class="footer-link">GitHub Repository</a>
+        <a href="https://github.com/MuhamadWallah/telco-churn-analytics/pkgs/container/telco-churn-analytics" target="_blank" class="footer-link">Docker Container Image</a>
+        <a href="#simulator" class="footer-link">Live Risk Simulator</a>
+      </div>
+      <div class="footer-copy">
+        &copy; 2026 Telco Churn Analytics Platform · Built with PostgreSQL, Scikit-Learn & Modern Web Standards.
+      </div>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
