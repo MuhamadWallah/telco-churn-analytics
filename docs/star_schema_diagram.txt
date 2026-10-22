@@ -1,0 +1,38 @@
+    +----------------------+
+    | dim_customer         |
+    |----------------------|                      +----------------------+
+    | PK customer_key      |                      | dim_contract         |
+    |    customer_id (UQ)  |                      |----------------------|
+    |    gender            |                      | PK contract_key      |
+    |    senior_citizen    |                      |    contract_type     |
+    |    partner           |                      |    paperless_billing |
+    |    dependents        |                      +----------------------+
+    +----------------------+
+               |                                             |
+               +--------------v                   v----------+
+                         +--------------------------------+
+                         | fact_customer_churn            |
+                         |--------------------------------|   +----------------------+
++--------------------+   | PK,FK customer_key             |   | dim_service (junk)   |
+| dim_payment        |   |    FK contract_key             |   |----------------------|
+|--------------------|   |    FK service_key              |<--| PK service_key       |
+| PK payment_key     |-->|    FK payment_key              |   |    phone_service     |
+|    payment_method  |   |    FK churn_key                |   |    multiple_lines    |
++--------------------+   |    FK tenure_key        (new)  |   |    internet_service  |
+                         |--------------------------------|   |    online_security   |
++--------------------+   | measures:                      |   |    online_backup     |
+| dim_churn          |   |    tenure                      |   |    device_protection |
+|--------------------|   |    monthly_charges             |   |    tech_support      |
+| PK churn_key       |-->|    total_charges               |   |    streaming_tv      |
+|    churn_label     |   |    customer_count       (new)  |   |    streaming_movies  |
+|    churn_flag (0/1)|   +--------------------------------+   +----------------------+
++--------------------+                   ^
+                                         |
+                             +--------------------------+
+                             | dim_tenure (new)         |
+                             |--------------------------|
+                             | PK tenure_key            |
+                             |    tenure_months (0-72)  |
+                             |    tenure_band           |
+                             |    tenure_group          |
+                             +--------------------------+

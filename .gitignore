@@ -1,0 +1,6 @@
+# Never commit passwords
+.streamlit/secrets.toml
+
+# Python caches
+__pycache__/
+*.pyc

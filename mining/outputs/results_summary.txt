@@ -1,0 +1,139 @@
+
+==============================================================================
+1. Data from the warehouse (olap.v_churn_model_input)
+==============================================================================
+Database        : telco_churn_dw on localhost:5432
+Rows x columns  : 7,043 x 22 (identifiers customer_id, source_row_no are NOT used as features)
+Features        : 4 numeric + 15 categorical
+Churn = 1       : 1,869 (26.54%)
+scikit-learn    : 1.8.0
+TotalCharges    : warehouse value (0.00 for the 11 tenure-0 customers)
+
+==============================================================================
+2. Train / test split (80/20, stratified, random_state=42)
+==============================================================================
+Training rows: 5,634  (churn rate 26.54%)
+Test rows    : 1,409  (churn rate 26.54%)
+
+==============================================================================
+3. Test-set results (threshold 0.5)
+==============================================================================
+              model  accuracy  precision  recall     f1  roc_auc  tn  fp  fn  tp
+Logistic Regression    0.8055     0.6572  0.5588 0.6040   0.8421 926 109 165 209
+      Decision Tree    0.7984     0.6347  0.5668 0.5989   0.8276 913 122 162 212
+      Random Forest    0.7559     0.5274  0.7727 0.6269   0.8428 776 259  85 289
+  Gradient Boosting    0.8048     0.6701  0.5214 0.5865   0.8454 939  96 179 195
+
+==============================================================================
+4. Comparison with the earlier analysis (now - previous)
+==============================================================================
+              model  accuracy  precision  recall      f1  roc_auc
+      Decision Tree   +0.0000    +0.0000 +0.0000 +0.0000  -0.0006
+  Gradient Boosting   -0.0007    -0.0060 +0.0080 +0.0029  -0.0001
+Logistic Regression   +0.0000    +0.0000 +0.0000 +0.0000  +0.0002
+      Random Forest   -0.0028    -0.0037 -0.0027 -0.0035  +0.0018
+Largest absolute difference: 0.0080
+Random Forest confusion matrix now: TN 776  FP 259  FN 85  TP 289   (earlier: TN 779  FP 256  FN 84  TP 290)
+
+==============================================================================
+5. Feature importance (Random Forest)
+==============================================================================
+5a. Impurity importance (mean decrease in impurity; one-hot columns), top 10:
+ rank_no                        feature  importance
+       1        Contract=Month-to-month      0.1440
+       2                         tenure      0.1255
+       3                   TotalCharges      0.0871
+       4              OnlineSecurity=No      0.0764
+       5              Contract=Two year      0.0728
+       6                 TechSupport=No      0.0619
+       7    InternetService=Fiber optic      0.0592
+       8                 MonthlyCharges      0.0510
+       9 PaymentMethod=Electronic check      0.0397
+      10              Contract=One year      0.0198
+
+5b. Permutation importance (mean decrease in test ROC-AUC, 10 repeats; original columns), top 10:
+ rank_no          feature  importance  importance_std
+       1         Contract     0.06390         0.00538
+       2           tenure     0.02513         0.00204
+       3  InternetService     0.01945         0.00528
+       4     TotalCharges     0.01248         0.00186
+       5   OnlineSecurity     0.00666         0.00218
+       6      TechSupport     0.00512         0.00165
+       7    PaymentMethod     0.00217         0.00147
+       8 PaperlessBilling     0.00185         0.00149
+       9  StreamingMovies     0.00127         0.00107
+      10      StreamingTV     0.00107         0.00112
+
+==============================================================================
+6. 5-fold stratified cross-validation (all 7,043 rows; pipeline refitted per fold)
+==============================================================================
+              model  accuracy_mean  precision_mean  recall_mean  f1_mean  roc_auc_mean  roc_auc_std
+Logistic Regression         0.8053          0.6584       0.5527   0.6008        0.8451       0.0134
+      Decision Tree         0.7934          0.6232       0.5628   0.5898        0.8310       0.0083
+      Random Forest         0.7615          0.5354       0.7672   0.6306        0.8458       0.0117
+  Gradient Boosting         0.8055          0.6692       0.5281   0.5901        0.8474       0.0108
+ROC-AUC per fold:
+  Logistic Regression  0.854 0.845 0.864 0.825 0.836
+  Decision Tree        0.845 0.830 0.832 0.820 0.829
+  Random Forest        0.859 0.843 0.859 0.828 0.840
+  Gradient Boosting    0.860 0.846 0.859 0.832 0.839
+
+==============================================================================
+7. Threshold tuning example (Gradient Boosting)
+==============================================================================
+The threshold is chosen on OUT-OF-FOLD predictions for the TRAINING set (5-fold CV),
+then checked once on the untouched test set. Tuning on the test set would leak.
+ threshold  precision  recall     f1  flagged_pct      cost
+    0.1000     0.4041  0.9411 0.5654      61.8033 2515.0000
+    0.1500     0.4494  0.8977 0.5990      52.9996 2409.0000
+    0.2000     0.4859  0.8542 0.6195      46.6454 2441.0000
+    0.2500     0.5119  0.8080 0.6267      41.8885 2587.0000
+    0.3000     0.5435  0.7565 0.6326      36.9365 2770.0000
+    0.3500     0.5814  0.7050 0.6372      32.1796 2964.0000
+    0.4000     0.6143  0.6415 0.6276      27.7068 3282.0000
+    0.4500     0.6433  0.5886 0.6147      24.2812 3563.0000
+    0.5000     0.6644  0.5258 0.5870      20.9975 3942.0000
+    0.5500     0.6885  0.4508 0.5449      17.3766 4410.0000
+    0.6000     0.7032  0.3692 0.4842      13.9333 4948.0000
+    0.6500     0.7611  0.3090 0.4396      10.7739 5310.0000
+    0.7000     0.7943  0.2428 0.3719       8.1115 5754.0000
+
+Threshold with the best F1 on training data      : 0.35
+Threshold with the lowest cost (FN = 5 x FP)       : 0.15
+Effect on the TEST set:
+       rule  threshold  precision  recall     f1  missed_churners  wasted_offers     cost
+    default     0.5000     0.6701  0.5214 0.5865              179             96 991.0000
+    best F1     0.3500     0.5662  0.7086 0.6295              109            203 748.0000
+lowest cost     0.1500     0.4498  0.8984 0.5995               38            411 601.0000
+
+==============================================================================
+8. Churn probability for every customer (out-of-fold)
+==============================================================================
+Scoring model (highest mean CV ROC-AUC): Gradient Boosting
+risk_band  customers  actual_churn_rate
+     High       1475              66.92
+   Medium       1460              36.03
+      Low       4108               8.67
+Customers who have NOT churned but are in the High band (retention targets): 488
+
+==============================================================================
+9. Charts and files
+==============================================================================
+  saved M:/PROJECTS/Telco DataWarehouse/mining/outputs/01_model_comparison.png
+  saved M:/PROJECTS/Telco DataWarehouse/mining/outputs/02_roc_curves.png
+  saved M:/PROJECTS/Telco DataWarehouse/mining/outputs/03_confusion_matrices.png
+  saved M:/PROJECTS/Telco DataWarehouse/mining/outputs/04_rf_impurity_importance.png
+  saved M:/PROJECTS/Telco DataWarehouse/mining/outputs/05_permutation_importance.png
+  saved M:/PROJECTS/Telco DataWarehouse/mining/outputs/06_threshold_tuning.png
+  saved 7 CSV files in M:/PROJECTS/Telco DataWarehouse/mining/outputs
+
+==============================================================================
+10. Results written to the warehouse
+==============================================================================
+olap.mining_run run_id = 1
+  olap.model_metrics                 4 rows
+  olap.model_feature_importance     64 rows
+  olap.model_test_prediction     5,636 rows
+  olap.customer_churn_score      7,043 rows
+
+Finished in 34.8 s. Remember: these are associations in this sample, not causes of churn.

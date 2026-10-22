@@ -1,0 +1,15 @@
+# Python packages for the Telco churn data-warehouse project
+# Install with:   pip install -r requirements.txt
+# Tested with Python 3.14 on Windows (versions in brackets).
+
+# data mining (mining/churn_mining.py)
+pandas>=2.2              # data frames                         (2.3.3)
+numpy>=2.0               # numerical arrays                    (2.3.5)
+scikit-learn>=1.5        # models, pipeline, metrics           (1.8.0)
+matplotlib>=3.8          # charts                              (3.10.8)
+SQLAlchemy>=2.0          # database connection layer           (2.0.46)
+psycopg2-binary>=2.9.10  # PostgreSQL driver                   (2.9.13)
+
+# dashboard (dashboard/app.py)
+streamlit>=1.50          # web dashboard framework             (1.52.1)
+altair>=5.0              # interactive charts                  (6.0.0)
