@@ -242,9 +242,37 @@ h1, h2, h3, h4 {
 
 .hero-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 1rem;
   justify-content: center;
   margin-bottom: 3.5rem;
+}
+
+/* Live app link + QR code (gallery section) */
+.live-app {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  max-width: 680px;
+  margin: 1.5rem auto 0;
+  text-align: left;
+}
+
+.live-app-qr {
+  width: 140px;
+  height: 140px;
+  border-radius: 8px;
+  background: #fff;
+  padding: 6px;
+}
+
+.live-app-note {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-top: 0.75rem;
+  max-width: 420px;
 }
 
 /* Metric KPI Grid */

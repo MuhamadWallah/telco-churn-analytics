@@ -128,12 +128,13 @@ A public version of the project runs entirely on free plans:
 | Public web app | Streamlit Community Cloud | `app/` |
 | Monthly maintenance | GitHub Actions | `.github/workflows/monthly_refresh.yml` |
 
-**Live app:** *link added after deployment*
+**Live app:** https://muhammad-telco-churn-analytics.streamlit.app/ ·
+**Report section (architecture + free-plan limits):** [docs/CLOUD_DEPLOYMENT_REPORT.md](docs/CLOUD_DEPLOYMENT_REPORT.md)
 
 ```
 app/
   streamlit_app.py            entry point: page set-up, sidebar, navigation
-  common.py                   database connection (st.secrets), caching, model loading
+  common.py                   database connection (st.secrets or .env.local, read-only), caching, model loading
   charts.py                   Altair chart builders
   pages/overview.py           KPIs + churn by contract, payment method, tenure band, internet service
   pages/olap_explorer.py      slice & dice, roll-up, pivot and drill-down
@@ -142,7 +143,7 @@ app/
   pages/model_performance.py  model comparison, confusion matrix, feature importance, run history
 model/
   config.py                   all model settings (decision threshold, selection rule, drift limits)
-  db.py                       database connection (DATABASE_URL environment variable)
+  db.py                       database connection (DATABASE_URL, else DATABASE_URL_UNPOOLED in .env.local)
   train.py                    trains the 4 models from the warehouse -> churn_model.joblib + metrics.json
   score.py                    scores every customer -> dw.churn_scores, logs dw.model_runs
   promote.py                  quarterly retraining: replace only if not worse; roll back
