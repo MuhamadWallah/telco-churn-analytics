@@ -165,6 +165,9 @@ streamlit run app/streamlit_app.py      # [neon] url from .streamlit/secrets.tom
 ```
 `$env:DATABASE_URL = "..."` still overrides `.env.local` (GitHub Actions sets it from the secret NEON_DATABASE_URL).
 
+**Keeping it running:** see [docs/MAINTENANCE.md](docs/MAINTENANCE.md): the monthly 5-minute check, data drift and
+retraining, free-plan limits, passwords, and backups with `backup_neon.ps1` / `restore_neon.ps1`.
+
 Results are associations in a public sample, not causes of churn.
 
 ---
