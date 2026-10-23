@@ -1,15 +1,28 @@
-# Python packages for the Telco churn data-warehouse project
+# Python packages for the Telco churn data-warehouse project.
 # Install with:   pip install -r requirements.txt
-# Tested with Python 3.14 on Windows (versions in brackets).
+#
+# Every version is PINNED (==). The same file is used on your PC, in GitHub
+# Actions and on Streamlit Community Cloud, so the model is trained and used
+# with exactly the same libraries. A model saved by one scikit-learn version
+# may refuse to load, or predict differently, under another version.
+# Tested with Python 3.14 on Windows. Choose Python 3.14 on Streamlit Cloud too.
 
-# data mining (mining/churn_mining.py)
-pandas>=2.2              # data frames                         (2.3.3)
-numpy>=2.0               # numerical arrays                    (2.3.5)
-scikit-learn>=1.5        # models, pipeline, metrics           (1.8.0)
-matplotlib>=3.8          # charts                              (3.10.8)
-SQLAlchemy>=2.0          # database connection layer           (2.0.46)
-psycopg2-binary>=2.9.10  # PostgreSQL driver                   (2.9.13)
+# data and models (model/, mining/)
+numpy==2.3.5
+pandas==2.3.3
+scipy==1.17.0
+scikit-learn==1.8.0
+joblib==1.5.3
 
-# dashboard (dashboard/app.py)
-streamlit>=1.50          # web dashboard framework             (1.52.1)
-altair>=5.0              # interactive charts                  (6.0.0)
+# database
+SQLAlchemy==2.0.46
+psycopg[binary]==3.3.6       # PostgreSQL driver used by app/ and model/ (Neon)
+psycopg2-binary==2.9.13      # PostgreSQL driver used by mining/ and dashboard/
+python-dotenv==1.2.1         # reads .env.local written by `neon deploy` (app/ and model/)
+
+# web app (app/, dashboard/)
+streamlit==1.52.1
+altair==6.0.0
+
+# charts saved as PNG by mining/churn_mining.py
+matplotlib==3.10.8

@@ -150,6 +150,7 @@ else:
         ],
         "Data mining": [
             st.Page(views.models, title="Model results", icon=":material/model_training:"),
+            st.Page(views.insights, title="Insights & recommendations", icon=":material/lightbulb:"),
             st.Page(views.at_risk, title="At-risk customers", icon=":material/person_alert:"),
         ],
         "Data quality": [

@@ -77,6 +77,11 @@ jobs:
           test -f mining/outputs/02_roc_curves.png
           test -f mining/outputs/test_metrics.csv
           test -f mining/outputs/results_summary.txt
+          test -f mining/outputs/insights_report.md
+          test -f mining/outputs/retention_solutions.csv
+          grep -q "Recommended solution" mining/outputs/insights_report.md
+          grep -q "Why customers leave" mining/outputs/insights_report.md
+          test -f mining/outputs/churn_reasons.csv
           echo "All model outputs and evaluation charts successfully verified."
 
   deploy-container:

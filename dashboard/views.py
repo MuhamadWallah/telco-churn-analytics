@@ -493,7 +493,146 @@ def at_risk() -> None:
 
 
 # =============================================================================
-# 8. Data quality
+# 8. Insights & recommendations (explanation written by mining/insights.py)
+# =============================================================================
+def insights() -> None:
+    run_id = db.latest_run_id()
+    ready = bool(db.query("SELECT to_regclass('olap.mining_insight') IS NOT NULL "
+                          "AND to_regclass('olap.retention_solution') IS NOT NULL AS ok").iloc[0]["ok"])
+    sections = (db.query("SELECT section_no, section_title, body_markdown FROM olap.mining_insight "
+                         "WHERE run_id = :r ORDER BY section_no", {"r": run_id})
+                if ready and run_id is not None else pd.DataFrame())
+    if sections.empty:
+        page_header("Insights & recommendations", "No explanation found for the latest mining run.")
+        st.warning("Run  sql/08_mining_objects.sql  once (it adds the tables olap.mining_insight and "
+                   "olap.retention_solution), then run  python mining/churn_mining.py  again.")
+        return
+    page_header("Insights & recommendations",
+                f"Mining run {run_id} · plain-English explanation built by rules from this run's numbers "
+                "(mining/insights.py) · what-if effects estimated by the scoring model, out-of-fold")
+    sol = db.query("SELECT * FROM olap.retention_solution WHERE run_id = :r", {"r": run_id})
+    for col in ["expected_churners_before", "expected_churners_after", "churners_prevented",
+                "prevented_per_100", "revenue_protected", "net_revenue_change"]:
+        sol[col] = sol[col].astype(float)
+
+    rec = sol[sol.is_recommended]
+    if len(rec):
+        r = rec.iloc[0]
+        st.success(f"**Recommended solution: {r.solution_name}.** {r.action}", icon=":material/lightbulb:")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Active customers targeted", f"{int(r.target_customers):,}",
+                  f"{int(r.high_risk_customers):,} in the High risk band", delta_color="off",
+                  delta_arrow="off", border=True)
+        c2.metric("Expected churners prevented", f"{r.churners_prevented:,.0f}",
+                  f"{r.churners_prevented / r.expected_churners_before:.0%} fewer among the targets",
+                  delta_color="off", delta_arrow="off", border=True)
+        c3.metric("Monthly revenue protected", money(r.revenue_protected), border=True,
+                  help="Monthly bills of the customers the model expects to keep (before the cost of the offer).")
+        c4.metric("Prevented per 100 contacted", f"{r.prevented_per_100:.1f}", border=True)
+
+    why_customers_leave(run_id)
+
+    sim = sol[sol.simulated].sort_values("rank_no").copy()
+    sim["label"] = np.where(sim.is_recommended, sim.solution_name + " (recommended)", sim.solution_name)
+    st.subheader("Possible solutions compared")
+    st.caption("Expected churners = sum of the predicted churn probabilities of the targeted active customers. "
+               "The what-if assumes every targeted customer accepts; target groups overlap, so effects do not add up.")
+    show(charts.solution_bars(sim))
+    shared = {
+        "solution_name": st.column_config.TextColumn("Solution", width="medium"),
+        "target_rule": st.column_config.TextColumn("Who is targeted", width="medium"),
+        "target_customers": st.column_config.NumberColumn("Targeted", format="%d"),
+        "expected_churners_before": st.column_config.NumberColumn("Expected churners", format="%.0f"),
+        "reasons": st.column_config.TextColumn("Why (not) chosen", width="large"),
+    }
+    # net_revenue_change is only known for the discount; its value is quoted in that row's reasons
+    st.dataframe(sim[["rank_no", "solution_name", "target_rule", "target_customers", "expected_churners_before",
+                      "expected_churners_after", "churners_prevented", "prevented_per_100", "revenue_protected",
+                      "reasons"]], hide_index=True, column_config={
+        **shared,
+        "rank_no": st.column_config.NumberColumn("Rank"),
+        "expected_churners_after": st.column_config.NumberColumn("After the action", format="%.0f"),
+        "churners_prevented": st.column_config.NumberColumn("Prevented", format="%.0f"),
+        "prevented_per_100": st.column_config.NumberColumn("Per 100 contacted", format="%.1f"),
+        "revenue_protected": st.column_config.NumberColumn("Revenue protected / month", format="%.0f",
+                                                           help="Monthly bills of the customers the model expects "
+                                                                "to keep, before the cost of the offer"),
+    })
+    support = sol[~sol.simulated]
+    if len(support):
+        st.markdown("**Supporting actions** (the model cannot simulate their effect)")
+        st.dataframe(support[["solution_name", "target_rule", "target_customers", "high_risk_customers",
+                              "expected_churners_before", "reasons"]], hide_index=True, column_config={
+            **shared, "high_risk_customers": st.column_config.NumberColumn("In the High band", format="%d")})
+
+    st.subheader("Full explanation")
+    for row in sections.itertuples():
+        expanded = row.section_title.startswith(("In short", "Why customers leave", "Recommended"))
+        with st.expander(row.section_title, expanded=expanded):
+            st.markdown(row.body_markdown)
+    report = "\n\n".join(f"## {row.section_no}. {row.section_title}\n\n{row.body_markdown}"
+                         for row in sections.itertuples())
+    st.download_button("Download the explanation (Markdown)", report.encode("utf-8"),
+                       file_name=f"churn_insights_run_{run_id}.md", mime="text/markdown",
+                       icon=":material/download:")
+    st.info("The recommendation is a model-based starting point for a **controlled pilot** (offer vs no offer, "
+            "randomly assigned), not proof of what an offer would achieve. " + CAVEAT + " The section **Why "
+            "customers leave** gives the most likely reasons that the data and the model support, and how to "
+            "confirm each one.", icon=":material/info:")
+
+
+def why_customers_leave(run_id: int) -> None:
+    """The reason-code summary (olap.churn_reason) on the Insights page."""
+    st.subheader("Why customers leave")
+    st.caption("The IBM sample records THAT a customer left, not WHY, so these reasons are inferred. For every "
+               "customer the model measured how much each factor raises the churn probability compared with typical "
+               "values of that factor; a factor that adds at least 5 points is one of the customer's reasons.")
+    ready = bool(db.query("SELECT to_regclass('olap.churn_reason') IS NOT NULL AS ok").iloc[0]["ok"])
+    reasons = (db.query("SELECT * FROM olap.churn_reason WHERE run_id = :r", {"r": run_id})
+               if ready else pd.DataFrame())
+    if reasons.empty:
+        st.info("Run  sql/08_mining_objects.sql  once more (it adds olap.churn_reason), then  python "
+                "mining/churn_mining.py. Until then the reasons are only in the full explanation below.",
+                icon=":material/info:")
+        return
+    for col in ["churners_main_pct", "churners_contributing_pct", "avg_points_churners", "at_risk_main_pct",
+                "at_risk_contributing_pct", "data_gap_ratio"]:
+        reasons[col] = reasons[col].astype(float)
+    factors = reasons[reasons.reason_key != "none"].sort_values("churners_contributing_pct", ascending=False)
+    none = reasons[reasons.reason_key == "none"]
+    top = factors.iloc[0]
+    left, right = st.columns([1.1, 1], gap="large")
+    with left:
+        show(charts.reason_bars(factors))
+        if len(none):
+            st.caption(f"{none.iloc[0].churners_main_pct:.0f}% of the customers who left have no single clear driver "
+                       "(no factor adds 5 points or more).")
+    with right:
+        st.markdown(f"**Most common reason: {top.reason_name}** - a reason for {top.churners_contributing_pct:.0f}% "
+                    f"of the customers who left (the main reason for {top.churners_main_pct:.0f}%).")
+        st.markdown(f"**Likely explanation** (interpretation, not measured): {top.likely_explanation}")
+        st.markdown(f"**How to confirm:** {top.how_to_confirm[0].upper() + top.how_to_confirm[1:]}")
+    st.dataframe(factors[["reason_name", "churners_contributing_pct", "churners_main_pct", "at_risk_contributing_pct",
+                          "evidence_strength", "likely_explanation", "how_to_confirm", "linked_solution"]],
+                 hide_index=True, column_config={
+                     "reason_name": st.column_config.TextColumn("Reason", width="medium"),
+                     "churners_contributing_pct": st.column_config.ProgressColumn(
+                         "A reason for (% of leavers)", min_value=0, max_value=100, format="%.0f%%"),
+                     "churners_main_pct": st.column_config.NumberColumn("Main reason for (%)", format="%.1f"),
+                     "at_risk_contributing_pct": st.column_config.NumberColumn(
+                         "A reason for (% of active High-risk)", format="%.0f",
+                         help="Customers who have not left yet but are in the High risk band"),
+                     "evidence_strength": st.column_config.TextColumn(
+                         "Evidence", help="Strong = churn-rate gap of at least 2x in the data AND a reason for at "
+                                          "least 25% of leavers; Moderate = one of the two; Weak = neither"),
+                     "likely_explanation": st.column_config.TextColumn("Likely explanation", width="large"),
+                     "how_to_confirm": st.column_config.TextColumn("How to confirm", width="large"),
+                     "linked_solution": st.column_config.TextColumn("Linked solution", width="medium"),
+                 })
+
+
+# =============================================================================
+# 9. Data quality
 # =============================================================================
 def data_quality() -> None:
     page_header("Data quality and ETL",
@@ -520,7 +659,7 @@ def data_quality() -> None:
 
 
 # =============================================================================
-# 9. Administration (admin role only)
+# 10. Administration (admin role only)
 # =============================================================================
 def admin() -> None:
     if st.session_state.get("user", {}).get("app_role") != "admin":

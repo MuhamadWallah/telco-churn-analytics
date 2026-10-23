@@ -269,3 +269,47 @@ def cost_curve(df: pd.DataFrame, current: float):
                  alt.Tooltip("missed:Q", title="Missed churners"), alt.Tooltip("wasted:Q", title="Wasted offers")])
     marker = alt.Chart(pd.DataFrame({"threshold": [current]})).mark_rule(color=INK, strokeWidth=1).encode(x="threshold:Q")
     return finish(line + marker, height=260)
+
+
+def solution_bars(df: pd.DataFrame):
+    """Expected churners prevented per simulated solution (largest at the top).
+
+    The recommended solution is drawn solid and named in its label; the other
+    solutions are faded, so the choice is never shown by colour alone.
+    """
+    order = df.sort_values("churners_prevented", ascending=False)["label"].tolist()
+    base = alt.Chart(df).encode(
+        y=alt.Y("label:N", sort=order, title=None, axis=alt.Axis(ticks=False, domain=False)),
+        x=alt.X("churners_prevented:Q", title="Expected churners prevented among active customers (what-if)"),
+        tooltip=[alt.Tooltip("solution_name:N", title="Solution"),
+                 alt.Tooltip("target_customers:Q", title="Active customers targeted", format=","),
+                 alt.Tooltip("expected_churners_before:Q", title="Expected churners before", format=",.0f"),
+                 alt.Tooltip("expected_churners_after:Q", title="Expected churners after", format=",.0f"),
+                 alt.Tooltip("churners_prevented:Q", title="Prevented", format=",.0f"),
+                 alt.Tooltip("prevented_per_100:Q", title="Prevented per 100 contacted", format=".1f"),
+                 alt.Tooltip("revenue_protected:Q", title="Monthly revenue protected", format=",.0f")],
+    )
+    bars = base.mark_bar(color=BLUE, cornerRadiusEnd=4, size=BAR_SIZE).encode(
+        opacity=alt.condition("datum.is_recommended", alt.value(1.0), alt.value(0.35)))
+    text = base.mark_text(align="left", dx=5, color=INK_2, fontSize=12).encode(
+        text=alt.Text("churners_prevented:Q", format=",.0f"))
+    return finish(alt.layer(bars, text), height=max(140, 44 * len(df) + 40))
+
+
+def reason_bars(df: pd.DataFrame):
+    """Share of the customers who left for whom each factor is a reason (largest at the top)."""
+    order = df.sort_values("churners_contributing_pct", ascending=False)["reason_name"].tolist()
+    base = alt.Chart(df).encode(
+        y=alt.Y("reason_name:N", sort=order, title=None, axis=alt.Axis(ticks=False, domain=False)),
+        x=alt.X("churners_contributing_pct:Q", title="% of leavers for whom it is a reason",
+                scale=alt.Scale(domain=[0, 100])),
+        tooltip=[alt.Tooltip("reason_name:N", title="Reason"),
+                 alt.Tooltip("churners_contributing_pct:Q", title="A reason for % of leavers", format=".1f"),
+                 alt.Tooltip("churners_main_pct:Q", title="Main reason for % of leavers", format=".1f"),
+                 alt.Tooltip("at_risk_contributing_pct:Q", title="A reason for % of active High-risk", format=".1f"),
+                 alt.Tooltip("evidence_strength:N", title="Evidence")],
+    )
+    bars = base.mark_bar(color=BLUE, cornerRadiusEnd=4, size=BAR_SIZE)
+    text = base.mark_text(align="left", dx=5, color=INK_2, fontSize=12).encode(
+        text=alt.Text("churners_contributing_pct:Q", format=".0f"))
+    return finish(alt.layer(bars, text), height=max(140, 36 * len(df) + 40))

@@ -1,6 +1,7 @@
-# Streamlit settings for the Telco churn dashboard.
+# Streamlit settings for the Telco churn web app (app/) and dashboard (dashboard/).
 # Streamlit reads this file from the folder you start it in, so always start
-# the dashboard from the project folder:   python -m streamlit run dashboard/app.py
+# from the project folder:   streamlit run app/streamlit_app.py
+# Streamlit Community Cloud also reads it from the repository root.
 
 [theme]
 base = "light"
@@ -11,12 +12,13 @@ textColor = "#0b0b0b"
 font = "sans serif"
 
 [client]
-toolbarMode = "minimal"               # hide developer menus from dashboard users
+toolbarMode = "minimal"               # hide developer menus from visitors
 
 [browser]
 gatherUsageStats = false              # do not send usage statistics to Streamlit
 
 [server]
 runOnSave = false
-address = "localhost"                 # only this computer can open the dashboard;
-                                      # change to "0.0.0.0" ONLY for a supervised demo on a trusted network
+# No "address" setting here: Streamlit Community Cloud must be able to reach the
+# app. To allow ONLY your own computer during local tests, start it with
+#     streamlit run app/streamlit_app.py --server.address localhost

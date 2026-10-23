@@ -1,0 +1,149 @@
+# monthly_refresh.yml - free, automatic maintenance of the cloud warehouse and the model.
+#
+# A "workflow" is a list of steps that GitHub runs for you on one of its own
+# computers (a "runner"). This one runs:
+#   - every month   (05:00 UTC on the 1st = 07:00 in Zimbabwe):
+#       1. validation checks   2. refresh the materialized views
+#       3. re-score every customer   4. log the metrics in dw.model_runs
+#   - every quarter (06:00 UTC on 1 Jan, 1 Apr, 1 Jul, 1 Oct):
+#       retrain; the new model replaces the old one only if recall and ROC-AUC
+#       do not get worse (the old one is kept in model/archive/ for roll-back)
+#   - by hand: GitHub > Actions > "Monthly refresh" > Run workflow
+#       (tick "retrain" to retrain as well)
+#
+# It needs ONE repository secret (Settings > Secrets and variables > Actions):
+#   NEON_DATABASE_URL = the OWNER connection string of telco_churn_dw on Neon
+# GitHub Actions minutes are free for public repositories.
+
+name: Monthly refresh
+
+on:
+  schedule:
+    - cron: "0 5 1 * *"            # monthly refresh
+    - cron: "0 6 1 1,4,7,10 *"     # quarterly retraining
+  workflow_dispatch:
+    inputs:
+      retrain:
+        description: "Also retrain the model (it replaces the current one only if recall and ROC-AUC do not get worse)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write                   # lets the job commit model/last_refresh.json and a promoted model
+
+concurrency:
+  group: monthly-refresh            # never two runs at the same time
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: "3.14"            # the same Python as on your PC and on Streamlit Cloud
+
+jobs:
+  refresh:
+    name: Validate, refresh and re-score
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 5 1 * *'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install the Python packages (pinned versions)
+        run: pip install -r requirements.txt
+
+      - name: Install the PostgreSQL client (psql)
+        run: |
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update && sudo apt-get install -y postgresql-client
+          fi
+          psql --version
+
+      - name: Check that the secret exists
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::Add the repository secret NEON_DATABASE_URL (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+
+      - name: Wake up Neon (it sleeps when idle)
+        run: |
+          for i in 1 2 3 4 5 6; do
+            if psql "$DATABASE_URL" -tAc "SELECT 'Neon is awake'"; then exit 0; fi
+            echo "Not answering yet (attempt $i of 6), waiting 10 seconds ..."
+            sleep 10
+          done
+          exit 1
+
+      - name: "Steps 1-2: validate the warehouse and refresh the materialized views"
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -P pager=off -f sql/12_monthly_refresh.sql
+
+      - name: "Steps 3-4: re-score every customer and log the run in dw.model_runs"
+        run: >-
+          python model/score.py
+          --run-type ${{ github.event_name == 'schedule' && 'monthly' || 'manual' }}
+          --summary-file model/last_refresh.json
+
+      # GitHub switches off scheduled workflows in a public repository after 60 days
+      # without activity. This small monthly commit counts as activity.
+      - name: Commit the run summary (keeps the schedule alive)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add model/last_refresh.json
+          git commit -m "Monthly refresh $(date -u +%Y-%m-%d)" || echo "Nothing to commit"
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin "HEAD:$GITHUB_REF_NAME"
+
+  retrain:
+    name: Retrain and keep the better model
+    needs: refresh
+    if: >-
+      always() && needs.refresh.result != 'failure' && needs.refresh.result != 'cancelled' &&
+      (github.event.schedule == '0 6 1 1,4,7,10 *' || (github.event_name == 'workflow_dispatch' && inputs.retrain))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+    steps:
+      - name: Check out the latest commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install the Python packages (pinned versions)
+        run: pip install -r requirements.txt
+
+      - name: Train a candidate model on the warehouse data
+        run: python model/train.py --candidate
+
+      - name: Compare with the current model (replace only if not worse)
+        id: promote
+        run: python model/promote.py
+
+      - name: Commit the new model (Streamlit Cloud redeploys the app by itself)
+        if: steps.promote.outputs.promoted == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add model/
+          git commit -m "Retrain: promote model ${{ steps.promote.outputs.version }}"
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin "HEAD:$GITHUB_REF_NAME"
+
+      - name: Re-score every customer with the new model
+        if: steps.promote.outputs.promoted == 'true'
+        run: python model/score.py --run-type retrain

@@ -1,6 +1,22 @@
-# Never commit passwords
+# ---- Secrets: NEVER commit passwords or connection strings ----
 .streamlit/secrets.toml
+secrets.toml
+.env
+.env.*
+*.env
 
-# Python caches
+# ---- Database backups (pg_dump files contain all the data) ----
+backups/
+*.dump
+*.backup
+
+# ---- Model work files (the final model in model/ IS committed) ----
+model/candidate/
+
+# ---- Python ----
 __pycache__/
 *.pyc
+.venv/
+venv/
+.neon
+node_modules/

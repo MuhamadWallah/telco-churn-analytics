@@ -31,9 +31,15 @@ What the script does
  7. 5-fold stratified cross-validation, because a single split is only a
     preliminary estimate.
  8. A threshold-tuning example (the threshold is chosen on training data only).
- 9. Saves charts (PNG) and tables (CSV) in mining/outputs/, and writes the
-    results back to the warehouse (olap.mining_run, olap.model_metrics, ...)
-    for the dashboard.
+ 9. EXPLAINS the results in plain English (mining/insights.py): what the
+    metrics mean, which model and threshold to use and why, the key findings,
+    why customers leave (most likely reasons, inferred with model reason
+    codes), possible retention solutions (with a what-if simulation by the
+    model), and the recommended solution with the reasons it was chosen.
+10. Saves charts (PNG), tables (CSV) and the explanation (insights_report.md)
+    in mining/outputs/, and writes the results back to the warehouse
+    (olap.mining_run, olap.model_metrics, ..., olap.mining_insight,
+    olap.retention_solution, olap.churn_reason) for the dashboard.
 
 How to run (from the project folder)
 ------------------------------------
@@ -98,6 +104,8 @@ from sklearn.model_selection import (
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.tree import DecisionTreeClassifier
+
+import insights   # mining/insights.py: plain-English explanation and recommended solution
 
 # =============================================================================
 # 1. Settings
@@ -490,13 +498,65 @@ def chart_threshold(tuning: pd.DataFrame, chosen: float, path: Path) -> None:
     save(fig, path)
 
 
+def chart_solutions(solutions: pd.DataFrame, path: Path) -> None:
+    """Ranked bars: expected churners prevented per simulated solution.
+    The recommended solution is drawn solid and named in its label."""
+    sim = solutions[solutions["simulated"]].sort_values("churners_prevented", ascending=False)
+    labels = [f"{n}  (recommended)" if r else n for n, r in zip(sim["solution_name"], sim["is_recommended"])]
+    values = sim["churners_prevented"].to_numpy()
+    fig, ax = plt.subplots(figsize=(8.0, 0.5 * len(sim) + 1.4))
+    y = np.arange(len(sim))
+    ax.barh(y, values, height=0.55, color=[BLUE if r else BLUE_RAMP[1] for r in sim["is_recommended"]])
+    ax.set_yticks(y, labels)
+    ax.invert_yaxis()
+    ax.axvline(0, color=BASELINE, linewidth=1)
+    ax.xaxis.grid(True)
+    ax.set_axisbelow(True)
+    ax.spines["left"].set_visible(False)
+    ax.tick_params(axis="y", length=0)
+    span = max(values.max(), 0) - min(values.min(), 0)
+    for i, value in enumerate(values):
+        ax.text(max(value, 0) + span * 0.01, i, f"{value:,.0f}", va="center", fontsize=9, color=INK_2)
+    ax.set_xlabel("Expected churners prevented among active customers (model what-if, out-of-fold)")
+    ax.set_title("Possible solutions: what-if effect estimated by the scoring model")
+    save(fig, path)
+
+
+def chart_reasons(reasons: pd.DataFrame, path: Path) -> None:
+    """Ranked bars: share of the customers who left for whom each factor is a
+    reason (raises their churn probability by >= 5 points); the label also
+    gives the share for whom it is the MAIN reason."""
+    ranked = reasons[reasons["reason_key"] != "none"].sort_values("churners_contributing_pct", ascending=False)
+    values = ranked["churners_contributing_pct"].to_numpy()
+    fig, ax = plt.subplots(figsize=(8.0, 0.45 * len(ranked) + 1.5))
+    y = np.arange(len(ranked))
+    ax.barh(y, values, height=0.55, color=BLUE)
+    ax.set_yticks(y, ranked["reason_name"])
+    ax.invert_yaxis()
+    ax.axvline(0, color=BASELINE, linewidth=1)
+    ax.xaxis.grid(True)
+    ax.set_axisbelow(True)
+    ax.spines["left"].set_visible(False)
+    ax.tick_params(axis="y", length=0)
+    for i, (value, main) in enumerate(zip(values, ranked["churners_main_pct"])):
+        main_text = "<1%" if 0 < main < 1 else f"{main:.0f}%"
+        ax.text(value + 1, i, f"{value:.0f}%  (main reason for {main_text})", va="center", fontsize=9, color=INK_2)
+    ax.set_xlim(0, 100)
+    none = reasons.loc[reasons["reason_key"] == "none", "churners_main_pct"]
+    ax.set_xlabel("% of the customers who left for whom the factor is a reason (inferred, not stated by customers)"
+                  + (f"\n{none.iloc[0]:.0f}% of them have no single clear driver" if len(none) else ""))
+    ax.set_title("Why customers leave: most likely reasons (model reason codes)")
+    save(fig, path)
+
+
 # =============================================================================
 # 6. Write results to the warehouse
 # =============================================================================
-def write_results(engine: sa.Engine, run: dict, metrics_df: pd.DataFrame,
-                  importance_df: pd.DataFrame, test_pred_df: pd.DataFrame,
-                  scores_df: pd.DataFrame) -> int:
-    """Insert one mining run and its results in ONE transaction (all or nothing)."""
+def write_results(engine: sa.Engine, run: dict, frames: dict[str, pd.DataFrame]) -> int:
+    """Insert one mining run and its results in ONE transaction (all or nothing).
+
+    frames maps an olap table name to the rows to append (run_id is added here).
+    """
     with engine.begin() as conn:
         run_id = conn.execute(sa.text("""
             INSERT INTO olap.mining_run
@@ -506,14 +566,20 @@ def write_results(engine: sa.Engine, run: dict, metrics_df: pd.DataFrame,
                     :tuned_threshold, :sklearn_version, :notes)
             RETURNING run_id
         """), run).scalar_one()
-        for frame, table_name in [(metrics_df, "model_metrics"),
-                                  (importance_df, "model_feature_importance"),
-                                  (test_pred_df, "model_test_prediction"),
-                                  (scores_df, "customer_churn_score")]:
+        for table_name, frame in frames.items():
             frame.assign(run_id=run_id).to_sql(table_name, conn, schema="olap",
                                                if_exists="append", index=False,
                                                method="multi", chunksize=1000)
     return int(run_id)
+
+
+def existing_olap_tables(engine: sa.Engine, names: list[str]) -> set[str]:
+    """The olap tables among `names` that exist. Warehouses built before the
+    explanation tables were added need sql/08_mining_objects.sql once more."""
+    with engine.connect() as conn:
+        found = conn.execute(sa.text("SELECT tablename FROM pg_tables WHERE schemaname = 'olap' "
+                                     "AND tablename = ANY(:names)"), {"names": names}).scalars()
+        return set(found)
 
 
 # =============================================================================
@@ -668,9 +734,11 @@ def main() -> None:
         check_rows.append({"rule": label, "threshold": threshold, "precision": m["precision"],
                            "recall": m["recall"], "f1": m["f1"], "missed_churners": m["fn"],
                            "wasted_offers": m["fp"],
+                           "flagged_pct": 100 * (m["tp"] + m["fp"]) / len(y_test),
                            "cost": COST_MISSED_CHURNER * m["fn"] + COST_WASTED_OFFER * m["fp"]})
+    threshold_check = pd.DataFrame(check_rows)
     say("Effect on the TEST set:")
-    table(pd.DataFrame(check_rows), "{:.4f}")
+    table(threshold_check, "{:.4f}")
 
     # ---------------------------------------------------------------- scores
     heading("8. Churn probability for every customer (out-of-fold)")
@@ -692,8 +760,22 @@ def main() -> None:
     still_active_high = int(((scores_df["risk_band"] == "High") & (scores_df["actual_churn"] == 0)).sum())
     say(f"Customers who have NOT churned but are in the High band (retention targets): {still_active_high:,}")
 
+    # ---------------------------------------------------------------- explanation
+    heading("9. What the results mean: explanation, possible solutions and recommendation")
+    say("Built by rules from the numbers above (mining/insights.py); the what-if simulation refits")
+    say(f"{scoring_model} once per cross-validation fold.")
+    explanation = insights.explain_results(
+        X=X, y=y, ids=ids, model_settings={name: params for name, (_, params) in models.items()},
+        test_metrics=test_metrics, cv_results=cv_results, comparison=comparison, permutation=permutation,
+        threshold_check=threshold_check, tuned_model="Gradient Boosting",
+        cost_ratio=COST_MISSED_CHURNER / COST_WASTED_OFFER, scores_df=scores_df,
+        scoring_model=scoring_model, scoring_estimator=models[scoring_model][0],
+        make_pipeline=make_pipeline, cv=cv)
+    for line in explanation.text_lines(prefix="9."):
+        say(line)
+
     # ---------------------------------------------------------------- charts & files
-    heading("9. Charts and files")
+    heading("10. Charts and files")
     chart_model_comparison(test_metrics, out / "01_model_comparison.png")
     chart_roc(y_test, test_probs, out / "02_roc_curves.png")
     chart_confusion_matrices(test_metrics, out / "03_confusion_matrices.png")
@@ -708,6 +790,8 @@ def main() -> None:
                           f"Mean decrease in test ROC-AUC when the column is shuffled ({PERMUTATION_REPEATS} repeats; line = 1 std)",
                           out / "05_permutation_importance.png", label_top=4)
     chart_threshold(tuning, best_f1_threshold, out / "06_threshold_tuning.png")
+    chart_solutions(explanation.solutions, out / "07_solution_comparison.png")
+    chart_reasons(explanation.reasons, out / "08_churn_reasons.png")
 
     results.to_csv(out / "test_metrics.csv", index=False)
     comparison.to_csv(out / "comparison_with_previous.csv", index=False)
@@ -716,10 +800,16 @@ def main() -> None:
     permutation.to_csv(out / "rf_permutation_importance.csv", index=False)
     tuning.to_csv(out / "threshold_tuning_train_oof.csv", index=False)
     scores_df.to_csv(out / "customer_churn_scores.csv", index=False)
-    say(f"  saved 7 CSV files in {out.as_posix()}")
+    explanation.solutions.to_csv(out / "retention_solutions.csv", index=False)
+    explanation.targets.to_csv(out / "recommended_action_targets.csv", index=False)
+    explanation.reasons.to_csv(out / "churn_reasons.csv", index=False)
+    explanation.customer_reasons.to_csv(out / "churn_reasons_by_customer.csv", index=False)
+    say(f"  saved 11 CSV files in {out.as_posix()}")
+    (out / "insights_report.md").write_text(explanation.markdown(), encoding="utf-8")
+    say(f"  saved {(out / 'insights_report.md').as_posix()}  (the explanation of section 9)")
 
     # ---------------------------------------------------------------- database
-    heading("10. Results written to the warehouse")
+    heading("11. Results written to the warehouse")
     if args.no_db_write:
         say("Skipped (--no-db-write).")
     else:
@@ -753,20 +843,31 @@ def main() -> None:
             for name in models])
         notes = ("TotalCharges blank-as-missing (earlier analysis)" if args.blank_total_as_missing
                  else "TotalCharges = warehouse value (0.00 for tenure 0)")
+        frames = {"model_metrics": metrics_df, "model_feature_importance": importance_df,
+                  "model_test_prediction": test_pred_df, "customer_churn_score": scores_df}
+        insight_frames = {"mining_insight": explanation.section_rows(),
+                          "retention_solution": explanation.solutions,
+                          "churn_reason": explanation.reasons}
+        present = existing_olap_tables(engine, list(insight_frames))
+        frames.update({name: frame for name, frame in insight_frames.items() if name in present})
         run_id = write_results(engine, {
             "train_rows": len(X_train), "test_rows": len(X_test), "random_state": RANDOM_STATE,
             "scoring_model": scoring_model, "tuned_threshold": best_f1_threshold,
             "sklearn_version": sklearn.__version__, "notes": notes,
-        }, metrics_df, importance_df, test_pred_df, scores_df)
+        }, frames)
         say(f"olap.mining_run run_id = {run_id}")
-        say(f"  olap.model_metrics            {len(metrics_df):>6,} rows")
-        say(f"  olap.model_feature_importance {len(importance_df):>6,} rows")
-        say(f"  olap.model_test_prediction    {len(test_pred_df):>6,} rows")
-        say(f"  olap.customer_churn_score     {len(scores_df):>6,} rows")
+        for table_name, frame in frames.items():
+            say(f"  olap.{table_name:<26} {len(frame):>6,} rows")
+        missing = [f"olap.{name}" for name in insight_frames if name not in present]
+        if missing:
+            say(f"  NOTE: {', '.join(missing)} do(es) not exist yet, so that part of the explanation was saved")
+            say("  only in mining/outputs. Run sql/08_mining_objects.sql once, then run this script again")
+            say("  to show it on the dashboard's 'Insights & recommendations' page.")
 
     say()
     say(f"Finished in {time.time() - started:.1f} s. Remember: these are associations in this sample, "
         "not causes of churn.")
+    say("Full explanation: mining/outputs/insights_report.md")
     (out / "results_summary.txt").write_text("\n".join(REPORT_LINES) + "\n", encoding="utf-8")
 
 
